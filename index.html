@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CaixaFácil - Gestão Financeira</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-theme">
+
+    <!-- LANDING PAGE -->
+    <div id="landing-screen" class="landing-container">
+        <header class="landing-header">
+            <div class="landing-logo">
+                <i class="ph ph-wallet icon-brand"></i>
+                <span>CaixaFácil</span>
+            </div>
+            <nav class="landing-nav">
+                <button class="btn btn-secondary btn-sm" onclick="openAuthModal('login')">Entrar</button>
+                <button class="btn btn-primary btn-sm" onclick="openAuthModal('register')">Criar Conta</button>
+            </nav>
+        </header>
+
+        <main class="landing-main">
+            <section class="hero-section">
+                <h1>Gestão Financeira Simplificada</h1>
+                <p>O CaixaFácil é a ferramenta ideal para você ter o controle absoluto das entradas e saídas do seu negócio, sem complicações e em poucos cliques.</p>
+                <button class="btn btn-primary" style="font-size: 1.125rem; padding: 1rem 2rem;" onclick="openAuthModal('register')">
+                    Comece Agora
+                </button>
+            </section>
+
+            <section class="features-section">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="ph ph-chart-bar"></i></div>
+                        <h3>Gráficos Dinâmicos</h3>
+                        <p>Acompanhe o desempenho das suas finanças com gráficos intuitivos e fáceis de entender.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="ph ph-target"></i></div>
+                        <h3>Metas de Faturamento</h3>
+                        <p>Defina metas mensais e acompanhe o progresso do seu negócio dia a dia.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="ph ph-moon"></i></div>
+                        <h3>Modo Escuro</h3>
+                        <p>Trabalhe confortavelmente em qualquer ambiente com o elegante modo noturno.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="ph ph-lock-key"></i></div>
+                        <h3>Controle de Acesso</h3>
+                        <p>Sistema seguro onde administradores aprovam e gerenciam as contas da equipe.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <footer class="landing-footer">
+            <p>&copy; <span id="current-year">2024</span> CaixaFácil. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
+    <!-- MAIN APPLICATION -->
+    <div id="app-screen" class="app-container hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <i class="ph ph-wallet icon-brand"></i>
+                <span class="brand-name" id="sidebar-company-name">CaixaFácil</span>
+                <button class="btn-icon sidebar-close-mobile" id="btn-close-sidebar">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- User links -->
+                <a href="#" class="nav-item active" data-target="section-dashboard">
+                    <i class="ph ph-squares-four"></i> Dashboard
+                </a>
+                <a href="#" class="nav-item" data-target="section-transactions">
+                    <i class="ph ph-list-dashes"></i> Transações
+                </a>
+                <a href="#" class="nav-item" data-target="section-payables">
+                    <i class="ph ph-arrow-circle-up"></i> Contas a Pagar
+                </a>
+                <a href="#" class="nav-item" data-target="section-receivables">
+                    <i class="ph ph-arrow-circle-down"></i> Contas a Receber
+                </a>
+                <a href="#" class="nav-item" data-target="section-categories">
+                    <i class="ph ph-tag"></i> Categorias
+                </a>
+                <a href="#" class="nav-item" data-target="section-reports">
+                    <i class="ph ph-chart-line-up"></i> Relatórios
+                </a>
+                <!-- Admin links will be shown/hidden via JS -->
+                <div class="divider admin-only hidden"></div>
+                <a href="#" class="nav-item admin-only hidden" data-target="section-users">
+                    <i class="ph ph-users"></i> Gerenciar Usuários
+                </a>
+                
+                <div class="divider"></div>
+                <a href="#" class="nav-item" data-target="section-settings">
+                    <i class="ph ph-gear"></i> Configurações
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar">
+                        <i class="ph ph-user"></i>
+                    </div>
+                    <div>
+                        <span id="logged-user-name" style="display: block; font-weight: 600;">Usuário</span>
+                        <span id="logged-user-role" style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">User</span>
+                    </div>
+                </div>
+                <button class="btn-icon" id="btn-logout" title="Sair">
+                    <i class="ph ph-sign-out"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-content">
+            
+            <!-- HEADER -->
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="btn-icon btn-menu" id="btn-open-sidebar">
+                        <i class="ph ph-list"></i>
+                    </button>
+                    <h2 class="page-title" id="current-page-title">Dashboard</h2>
+                </div>
+                <div class="header-right">
+                    <button class="btn-primary btn-sm user-only-action" id="btn-new-transaction">
+                        <i class="ph ph-plus"></i> Nova Transação
+                    </button>
+                    <button class="btn-icon" id="btn-theme-toggle" title="Alternar Tema">
+                        <i class="ph ph-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- SECTIONS -->
+            <div class="content-wrapper">
+                
+                <!-- PENDING APPROVAL SECTION -->
+                <section id="section-pending" class="app-section hidden">
+                    <div class="empty-state">
+                        <i class="ph ph-lock-key" style="color: var(--warning); font-size: 4rem;"></i>
+                        <h2 style="margin-top: 1rem;">Conta Aguardando Liberação</h2>
+                        <p style="max-width: 500px; margin: 1rem auto; color: var(--text-muted);">
+                            O seu cadastro foi realizado com sucesso, mas o acesso às funcionalidades do sistema está restrito.
+                            Para utilizar o sistema, realize o pagamento no botão abaixo e aguarde a liberação.
+                        </p>
+                        <div style="margin-top: 2rem; display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+                            <a href="https://go.perfectpay.com.br/PPU38CQBCAK" target="_blank" class="btn btn-primary" style="font-size: 1.125rem; padding: 1rem 2rem;">
+                                <i class="ph ph-credit-card"></i> Realizar Pagamento
+                            </a>
+                            <button class="btn btn-secondary" onclick="alert('Se o pagamento já foi realizado, aguarde. O administrador irá confirmar e liberar o seu acesso em breve.')">
+                                Já realizei o pagamento
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- DASHBOARD SECTION -->
+                <section id="section-dashboard" class="app-section active">
+                    <!-- Alerts -->
+                    <div id="alert-deficit" class="alert alert-danger hidden">
+                        <i class="ph ph-warning-circle"></i>
+                        Atenção: Suas saídas deste mês estão maiores que as entradas!
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="summary-cards">
+                        <div class="card summary-card">
+                            <div class="card-icon income">
+                                <i class="ph ph-trend-up"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Entradas (Mês)</h3>
+                                <p class="value income-text" id="dash-income">R$ 0,00</p>
+                            </div>
+                        </div>
+                        <div class="card summary-card">
+                            <div class="card-icon expense">
+                                <i class="ph ph-trend-down"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Saídas (Mês)</h3>
+                                <p class="value expense-text" id="dash-expense">R$ 0,00</p>
+                            </div>
+                        </div>
+                        <div class="card summary-card total-card">
+                            <div class="card-icon">
+                                <i class="ph ph-currency-dollar"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Saldo Atual</h3>
+                                <p class="value" id="dash-balance">R$ 0,00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <!-- Chart Card -->
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>Entradas vs Saídas (Últimos 6 meses)</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="financialChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Side widgets -->
+                        <div class="widgets-column">
+                            <!-- Goal Card -->
+                            <div class="card goal-card">
+                                <div class="card-header">
+                                    <h3>Meta de Faturamento Mensal</h3>
+                                </div>
+                                <div class="goal-info">
+                                    <span id="dash-goal-current">R$ 0,00</span>
+                                    <span class="goal-target">de <span id="dash-goal-target">R$ 0,00</span></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="dash-goal-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="goal-percent" id="dash-goal-percent">0%</p>
+                            </div>
+
+                            <!-- Quick Summary -->
+                            <div class="card quick-summary-card">
+                                <div class="card-header">
+                                    <h3>Resumo Rápido</h3>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Saldo do Dia:</span>
+                                    <strong id="dash-summary-day">R$ 0,00</strong>
+                                </div>
+                                <div class="summary-row">
+                                    <span>Saldo da Semana:</span>
+                                    <strong id="dash-summary-week">R$ 0,00</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TRANSACTIONS SECTION -->
+                <section id="section-transactions" class="app-section hidden">
+                    <div class="card">
+                        <div class="card-header with-actions">
+                            <h3>Todas as Transações</h3>
+                            <div class="filters">
+                                <input type="text" id="filter-search" class="input-filter" placeholder="Buscar descrição...">
+                                <select id="filter-type" class="input-filter">
+                                    <option value="all">Todos os Tipos</option>
+                                    <option value="income">Entradas</option>
+                                    <option value="expense">Saídas</option>
+                                </select>
+                                <select id="filter-category" class="input-filter">
+                                    <option value="all">Todas Categorias</option>
+                                    <!-- Dynamic options -->
+                                </select>
+                                <input type="month" id="filter-month" class="input-filter">
+                                <button class="btn-secondary" id="btn-clear-filters" title="Limpar Filtros"><i class="ph ph-eraser"></i></button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="transactions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Descrição</th>
+                                        <th>Categoria</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div id="transactions-empty" class="empty-state hidden">
+                                <i class="ph ph-receipt"></i>
+                                <p>Nenhuma transação encontrada.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PAYABLES SECTION -->
+                <section id="section-payables" class="app-section hidden">
+                    <div class="card">
+                        <div class="card-header with-actions" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                            <h3>Contas a Pagar (Pendentes e Atrasadas)</h3>
+                            <button class="btn-primary btn-sm user-only-action" onclick="openPayableModal()">
+                                <i class="ph ph-plus"></i> Nova Conta a Pagar
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="payables-table">
+                                <thead>
+                                    <tr>
+                                        <th>Vencimento</th>
+                                        <th>Descrição</th>
+                                        <th>Categoria</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div id="payables-empty" class="empty-state hidden">
+                                <i class="ph ph-check-circle"></i>
+                                <p>Tudo em dia! Nenhuma conta a pagar encontrada.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RECEIVABLES SECTION -->
+                <section id="section-receivables" class="app-section hidden">
+                    <div class="card">
+                        <div class="card-header with-actions" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                            <h3>Contas a Receber (Pendentes e Atrasadas)</h3>
+                            <button class="btn-primary btn-sm user-only-action" onclick="openReceivableModal()">
+                                <i class="ph ph-plus"></i> Nova Conta a Receber
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="receivables-table">
+                                <thead>
+                                    <tr>
+                                        <th>Vencimento</th>
+                                        <th>Descrição</th>
+                                        <th>Categoria</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div id="receivables-empty" class="empty-state hidden">
+                                <i class="ph ph-folder-open"></i>
+                                <p>Nenhuma conta a receber encontrada.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CATEGORIES SECTION -->
+                <section id="section-categories" class="app-section hidden">
+                    <div class="grid-2-cols">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Nova Categoria</h3>
+                            </div>
+                            <form id="form-category" class="card-body">
+                                <div class="form-group">
+                                    <label for="cat-name">Nome da Categoria</label>
+                                    <input type="text" id="cat-name" required placeholder="Ex: Alimentação">
+                                </div>
+                                <button type="submit" class="btn-primary">Adicionar Categoria</button>
+                            </form>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Categorias Cadastradas</h3>
+                            </div>
+                            <ul class="category-list" id="categories-list">
+                                <!-- Dynamic list -->
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- REPORTS SECTION -->
+                <section id="section-reports" class="app-section hidden">
+                    <div class="card">
+                        <div class="card-header with-actions" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                            <h3>Balanço Financeiro Anual</h3>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn-secondary btn-sm" onclick="window.print()">
+                                    <i class="ph ph-printer"></i> Imprimir
+                                </button>
+                                <button class="btn-secondary btn-sm" id="btn-export-csv-reports">
+                                    <i class="ph ph-download-simple"></i> Exportar CSV
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="reports-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mês/Ano</th>
+                                        <th>Total de Entradas</th>
+                                        <th>Total de Saídas</th>
+                                        <th>Saldo do Mês</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- USERS ADMIN SECTION -->
+                <section id="section-users" class="app-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Gerenciamento de Usuários</h3>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>E-mail</th>
+                                        <th>CPF</th>
+                                        <th>Status</th>
+                                        <th>Permissão</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SETTINGS SECTION -->
+                <section id="section-settings" class="app-section hidden">
+                    <div class="grid-2-cols">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Configurações Gerais</h3>
+                            </div>
+                            <form id="form-settings" class="card-body">
+                                <div class="form-group">
+                                    <label for="set-company-name">Nome da Empresa</label>
+                                    <input type="text" id="set-company-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="set-goal">Meta de Faturamento Mensal (R$)</label>
+                                    <input type="number" id="set-goal" step="0.01" min="0" required>
+                                </div>
+                                <button type="submit" class="btn-primary">Salvar Configurações</button>
+                            </form>
+                        </div>
+
+                        <div class="card danger-zone">
+                            <div class="card-header">
+                                <h3>Gerenciamento de Dados</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted mb-4">Seus dados são salvos localmente no seu navegador. Você pode exportá-los para um arquivo Excel (CSV) ou apagar tudo se desejar reiniciar.</p>
+                                
+                                <button class="btn-secondary mb-3 w-100" id="btn-export-csv">
+                                    <i class="ph ph-download-simple"></i> Exportar Dados (CSV)
+                                </button>
+                                
+                                <div class="divider"></div>
+
+                                <button class="btn-danger w-100" id="btn-clear-data">
+                                    <i class="ph ph-trash"></i> Apagar Todos os Dados
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- TRANSACTION MODAL -->
+    <div id="modal-transaction" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title">Nova Transação</h3>
+                <button class="btn-icon" id="btn-close-modal">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-transaction">
+                    <input type="hidden" id="trans-id">
+                    
+                    <div class="form-row">
+                        <div class="form-group radio-group">
+                            <label>Tipo de Transação</label>
+                            <div class="radio-options">
+                                <label class="radio-label income-radio">
+                                    <input type="radio" name="trans-type" value="income" checked>
+                                    <span><i class="ph ph-arrow-circle-up"></i> Entrada</span>
+                                </label>
+                                <label class="radio-label expense-radio">
+                                    <input type="radio" name="trans-type" value="expense">
+                                    <span><i class="ph ph-arrow-circle-down"></i> Saída</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trans-desc">Descrição</label>
+                        <input type="text" id="trans-desc" required placeholder="Ex: Venda de Produto X">
+                    </div>
+
+                    <div class="form-row 2-cols">
+                        <div class="form-group">
+                            <label for="trans-amount">Valor (R$)</label>
+                            <input type="number" id="trans-amount" step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="trans-date">Data / Vencimento</label>
+                            <input type="date" id="trans-date" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row 2-cols">
+                        <div class="form-group">
+                            <label for="trans-category">Categoria</label>
+                            <select id="trans-category" required>
+                                <!-- Dynamic options -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="trans-method">Forma de Pagamento</label>
+                            <select id="trans-method">
+                                <option value="pix">Pix</option>
+                                <option value="money">Dinheiro</option>
+                                <option value="card">Cartão</option>
+                                <option value="boleto">Boleto</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trans-status">Status</label>
+                        <select id="trans-status">
+                            <option value="paid">Pago / Recebido</option>
+                            <option value="pending">Pendente</option>
+                            <option value="late">Atrasado</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trans-notes">Observações (Opcional)</label>
+                        <textarea id="trans-notes" rows="2" placeholder="Detalhes adicionais..."></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="btn-cancel-transaction">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar Transação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH MODAL (LOGIN/REGISTER) -->
+    <div id="modal-auth" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="auth-modal-title">Entrar no CaixaFácil</h3>
+                <button class="btn-icon" onclick="closeAuthModal()">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Login Form -->
+                <form id="form-login">
+                    <div class="form-group">
+                        <label for="login-email">E-mail ou CPF</label>
+                        <input type="text" id="login-email" required placeholder="seu@email.com ou CPF">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Senha</label>
+                        <input type="password" id="login-password" required placeholder="Sua senha">
+                    </div>
+                    <div class="alert alert-danger hidden" id="login-error" style="margin-top: 1rem; padding: 0.5rem; font-size: 0.875rem;">Credenciais inválidas.</div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Acessar Sistema</button>
+                    <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem; color: var(--text-muted);">
+                        Ainda não tem conta? <a href="#" onclick="switchAuthView('register')" style="color: var(--primary); font-weight: 500;">Cadastre-se</a>
+                    </p>
+                </form>
+
+                <!-- Register Form -->
+                <form id="form-register" class="hidden">
+                    <div class="form-group">
+                        <label for="reg-name">Nome Completo</label>
+                        <input type="text" id="reg-name" required placeholder="Seu nome">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">E-mail</label>
+                        <input type="email" id="reg-email" required placeholder="seu@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-cpf">CPF (Apenas números)</label>
+                        <input type="text" id="reg-cpf" required placeholder="00000000000" maxlength="11">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Senha</label>
+                        <input type="password" id="reg-password" required placeholder="Crie uma senha">
+                    </div>
+                    <div class="alert alert-danger hidden" id="reg-error" style="margin-top: 1rem; padding: 0.5rem; font-size: 0.875rem;"></div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Criar Conta</button>
+                    <p style="text-align: center; margin-top: 1rem; font-size: 0.875rem; color: var(--text-muted);">
+                        Já tem conta? <a href="#" onclick="switchAuthView('login')" style="color: var(--primary); font-weight: 500;">Faça Login</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
