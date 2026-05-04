@@ -66,11 +66,19 @@ async function initApp() {
 }
 
 async function loadSupabaseData() {
-    // 1. Fetch Profile
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', loggedInUser.id).single();
-    currentUserProfile = profile;
-    
-    if(profile && profile.status === 'active') {
+    try {
+        // 1. Fetch Profile
+        const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', loggedInUser.id).single();
+        
+        if (error || !profile) {
+            console.error("Erro ao buscar perfil. A tabela profiles existe no Supabase?", error);
+            currentUserProfile = null;
+            return;
+        }
+        
+        currentUserProfile = profile;
+        
+        if(profile.status === 'active') {
         // 2. Fetch Settings
         const { data: setts } = await supabase.from('settings').select('*').eq('user_id', loggedInUser.id).single();
         if(setts) {
@@ -105,8 +113,11 @@ async function loadSupabaseData() {
             users = allUsers || [];
         }
     }
+    } catch(err) {
+        console.error("Erro fatal ao carregar dados do Supabase:", err);
+        currentUserProfile = null;
+    }
 }
-
 /* ==========================================================================
    DOM ELEMENTS
    ========================================================================== */
@@ -158,11 +169,19 @@ function showLandingScreen() {
 }
 
 function showAppScreen() {
+    if (!currentUserProfile) {
+        alert("Erro fatal: Seu perfil não foi encontrado no banco de dados. Você já rodou o código SQL no painel do Supabase?");
+        supabase.auth.signOut().then(() => {
+            window.location.reload();
+        });
+        return;
+    }
+
     landingScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
     
-    sidebarCompanyName.textContent = settings.companyName || 'CaixaFácil';
-    loggedUserName.textContent = currentUserProfile.name;
+    sidebarCompanyName.textContent = settings.companyName || settings.company_name || 'CaixaFácil';
+    loggedUserName.textContent = currentUserProfile.name || 'Usuário';
     loggedUserRole.textContent = currentUserProfile.role === 'admin' ? 'Administrador' : 'Usuário';
     
     const now = new Date();
@@ -260,7 +279,7 @@ formRegister.addEventListener('submit', async (e) => {
     }
     
     if (data.user) {
-        await supabase.from('profiles').insert({
+        const { error: insertError } = await supabase.from('profiles').insert({
             id: data.user.id,
             name,
             email,
@@ -268,6 +287,15 @@ formRegister.addEventListener('submit', async (e) => {
             role,
             status
         });
+        
+        if (insertError) {
+            errorEl.textContent = "Erro ao salvar perfil no banco. Você rodou o SQL?";
+            errorEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Criar Conta';
+            return;
+        }
+        
         closeAuthModal();
         initApp();
     }
