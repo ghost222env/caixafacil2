@@ -2,8 +2,9 @@
    SUPABASE CONFIGURATION
    ========================================================================== */
 // ATENÇÃO: Substitua os valores abaixo pelos dados do seu projeto Supabase
-const SUPABASE_URL = 'COLOQUE_SUA_URL_AQUI';
-const SUPABASE_ANON_KEY = 'COLOQUE_SUA_ANON_KEY_AQUI';
+// A URL deve obrigatoriamente começar com https:// e não deve terminar com /rest/v1/
+const SUPABASE_URL = 'https://ajqyzclckthgmboygpes.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqcXl6Y2xja3RoZ21ib3lncGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDM1MTEsImV4cCI6MjA5MzQxOTUxMX0.DUyI8JDc0SA5afyt9CQWGO-QJuHsaE4Dk3XIKOHYbJU';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -37,18 +38,30 @@ async function initApp() {
     const yearSpan = document.getElementById('current-year');
     if(yearSpan) yearSpan.textContent = new Date().getFullYear();
     
-    // Check Supabase Auth
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-        loggedInUser = null;
-        currentUserProfile = null;
+    // Check if Supabase is configured
+    if(SUPABASE_URL === 'https://seu-projeto.supabase.co') {
+        console.warn("Supabase não configurado. Por favor, insira suas credenciais no script.js.");
         showLandingScreen();
-    } else {
-        loggedInUser = session.user;
-        await loadSupabaseData();
-        showAppScreen();
-        renderAll();
+        return;
+    }
+    
+    try {
+        // Check Supabase Auth
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+            loggedInUser = null;
+            currentUserProfile = null;
+            showLandingScreen();
+        } else {
+            loggedInUser = session.user;
+            await loadSupabaseData();
+            showAppScreen();
+            renderAll();
+        }
+    } catch(err) {
+        console.error("Erro ao conectar com Supabase:", err);
+        showLandingScreen();
     }
 }
 
@@ -186,6 +199,10 @@ function applyUserPermissions() {
 }
 
 window.openAuthModal = function(view) {
+    if(SUPABASE_URL === 'https://seu-projeto.supabase.co') {
+        alert("⚠️ ATENÇÃO: Você precisa colocar a sua URL e Key do Supabase nas primeiras linhas do arquivo script.js para que o sistema funcione.");
+        return;
+    }
     modalAuth.classList.remove('hidden');
     switchAuthView(view);
 };
