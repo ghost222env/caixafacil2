@@ -1,8 +1,15 @@
 /* ==========================================================================
-   STATE MANAGEMENT & LOCAL STORAGE
+   SUPABASE CONFIGURATION
    ========================================================================== */
-   
-// Initial Default Data
+// ATENÇÃO: Substitua os valores abaixo pelos dados do seu projeto Supabase
+const SUPABASE_URL = 'COLOQUE_SUA_URL_AQUI';
+const SUPABASE_ANON_KEY = 'COLOQUE_SUA_ANON_KEY_AQUI';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ==========================================================================
+   STATE MANAGEMENT
+   ========================================================================== */
 const DEFAULT_CATEGORIES = ["Vendas", "Serviços", "Alimentação", "Água", "Luz", "Internet", "Salário", "Impostos", "Outros"];
 const DEFAULT_SETTINGS = {
     companyName: "CaixaFácil",
@@ -11,8 +18,9 @@ const DEFAULT_SETTINGS = {
 };
 
 // Global State
-let users = [];
-let loggedInUser = null;
+let loggedInUser = null; // auth.user
+let currentUserProfile = null; // public.profiles
+let users = []; // For Admin
 
 let transactions = [];
 let categories = [];
@@ -20,71 +28,77 @@ let settings = {};
 let financialChartInstance = null;
 
 // Initialization
-function initApp() {
-    loadData();
+async function initApp() {
+    // Set theme from local storage
+    const localTheme = localStorage.getItem('caixa_theme') || 'light';
+    settings.theme = localTheme;
     applyTheme();
     
-    // Set current year in footer
     const yearSpan = document.getElementById('current-year');
     if(yearSpan) yearSpan.textContent = new Date().getFullYear();
     
-    if (!loggedInUser) {
+    // Check Supabase Auth
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+        loggedInUser = null;
+        currentUserProfile = null;
         showLandingScreen();
     } else {
+        loggedInUser = session.user;
+        await loadSupabaseData();
         showAppScreen();
         renderAll();
     }
 }
 
-// Load Data from LocalStorage
-function loadData() {
-    users = JSON.parse(localStorage.getItem('caixa_users')) || [];
-    loggedInUser = JSON.parse(localStorage.getItem('caixa_logged_user')) || null;
+async function loadSupabaseData() {
+    // 1. Fetch Profile
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', loggedInUser.id).single();
+    currentUserProfile = profile;
     
-    if (loggedInUser && loggedInUser.status === 'active') {
-        const uid = loggedInUser.id;
-        transactions = JSON.parse(localStorage.getItem(`caixa_transactions_${uid}`)) || [];
-        categories = JSON.parse(localStorage.getItem(`caixa_categories_${uid}`)) || [...DEFAULT_CATEGORIES];
-        settings = JSON.parse(localStorage.getItem(`caixa_settings_${uid}`)) || {...DEFAULT_SETTINGS};
-    } else {
-        transactions = [];
-        categories = [...DEFAULT_CATEGORIES];
-        settings = {...DEFAULT_SETTINGS};
+    if(profile && profile.status === 'active') {
+        // 2. Fetch Settings
+        const { data: setts } = await supabase.from('settings').select('*').eq('user_id', loggedInUser.id).single();
+        if(setts) {
+            settings = { ...DEFAULT_SETTINGS, ...setts, theme: settings.theme };
+        } else {
+            settings = { ...DEFAULT_SETTINGS, theme: settings.theme };
+            await supabase.from('settings').insert({
+                user_id: loggedInUser.id,
+                company_name: DEFAULT_SETTINGS.companyName,
+                monthly_goal: DEFAULT_SETTINGS.monthlyGoal
+            });
+        }
+        
+        // 3. Fetch Categories
+        const { data: cats } = await supabase.from('categories').select('*').eq('user_id', loggedInUser.id);
+        if(cats && cats.length > 0) {
+            categories = cats.map(c => c.name);
+        } else {
+            categories = [...DEFAULT_CATEGORIES];
+            for(let c of DEFAULT_CATEGORIES) {
+                await supabase.from('categories').insert({ user_id: loggedInUser.id, name: c });
+            }
+        }
+        
+        // 4. Fetch Transactions
+        const { data: trans } = await supabase.from('transactions').select('*').eq('user_id', loggedInUser.id);
+        transactions = trans || [];
+        
+        // 5. Admin fetches all users
+        if(profile.role === 'admin') {
+            const { data: allUsers } = await supabase.from('profiles').select('*');
+            users = allUsers || [];
+        }
     }
-}
-
-// Save Data to LocalStorage
-function saveUsers() {
-    localStorage.setItem('caixa_users', JSON.stringify(users));
-}
-
-function saveLoggedInUser() {
-    localStorage.setItem('caixa_logged_user', JSON.stringify(loggedInUser));
-}
-
-function saveTransactions() {
-    if(!loggedInUser) return;
-    localStorage.setItem(`caixa_transactions_${loggedInUser.id}`, JSON.stringify(transactions));
-}
-
-function saveCategories() {
-    if(!loggedInUser) return;
-    localStorage.setItem(`caixa_categories_${loggedInUser.id}`, JSON.stringify(categories));
-}
-
-function saveSettings() {
-    if(!loggedInUser) return;
-    localStorage.setItem(`caixa_settings_${loggedInUser.id}`, JSON.stringify(settings));
 }
 
 /* ==========================================================================
    DOM ELEMENTS
    ========================================================================== */
-// Screens
 const landingScreen = document.getElementById('landing-screen');
 const appScreen = document.getElementById('app-screen');
-
-// Sidebar & Navigation
 const sidebar = document.getElementById('sidebar');
 const btnOpenSidebar = document.getElementById('btn-open-sidebar');
 const btnCloseSidebar = document.getElementById('btn-close-sidebar');
@@ -93,34 +107,29 @@ const appSections = document.querySelectorAll('.app-section');
 const currentPageTitle = document.getElementById('current-page-title');
 const adminOnlyElements = document.querySelectorAll('.admin-only');
 
-// Auth UI
 const modalAuth = document.getElementById('modal-auth');
 const formLogin = document.getElementById('form-login');
 const formRegister = document.getElementById('form-register');
 const authModalTitle = document.getElementById('auth-modal-title');
 const btnLogout = document.getElementById('btn-logout');
 
-// User Profile
 const sidebarCompanyName = document.getElementById('sidebar-company-name');
 const loggedUserName = document.getElementById('logged-user-name');
 const loggedUserRole = document.getElementById('logged-user-role');
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
 
-// Modals & Forms (App)
 const modalTransaction = document.getElementById('modal-transaction');
 const btnNewTransaction = document.getElementById('btn-new-transaction');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const btnCancelTransaction = document.getElementById('btn-cancel-transaction');
 const formTransaction = document.getElementById('form-transaction');
 
-// Tables & Lists
 const transactionsTableBody = document.querySelector('#transactions-table tbody');
 const payablesTableBody = document.querySelector('#payables-table tbody');
 const receivablesTableBody = document.querySelector('#receivables-table tbody');
 const categoriesList = document.getElementById('categories-list');
 const usersTableBody = document.querySelector('#users-table tbody');
 
-// Filters
 const filterSearch = document.getElementById('filter-search');
 const filterType = document.getElementById('filter-type');
 const filterCategory = document.getElementById('filter-category');
@@ -139,11 +148,10 @@ function showAppScreen() {
     landingScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
     
-    sidebarCompanyName.textContent = settings.companyName;
-    loggedUserName.textContent = loggedInUser.name;
-    loggedUserRole.textContent = loggedInUser.role === 'admin' ? 'Administrador' : 'Usuário';
+    sidebarCompanyName.textContent = settings.companyName || 'CaixaFácil';
+    loggedUserName.textContent = currentUserProfile.name;
+    loggedUserRole.textContent = currentUserProfile.role === 'admin' ? 'Administrador' : 'Usuário';
     
-    // Default month filter
     const now = new Date();
     filterMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
@@ -151,17 +159,12 @@ function showAppScreen() {
 }
 
 function applyUserPermissions() {
-    // Hide/Show Admin items
     adminOnlyElements.forEach(el => {
-        if(loggedInUser.role === 'admin') {
-            el.classList.remove('hidden');
-        } else {
-            el.classList.add('hidden');
-        }
+        if(currentUserProfile.role === 'admin') el.classList.remove('hidden');
+        else el.classList.add('hidden');
     });
 
-    if (loggedInUser.status === 'pending') {
-        // Hide all regular nav items, show only pending section
+    if (currentUserProfile.status === 'pending') {
         navItems.forEach(item => item.classList.add('hidden'));
         document.querySelectorAll('.user-only-action').forEach(el => el.classList.add('hidden'));
         
@@ -173,20 +176,15 @@ function applyUserPermissions() {
         document.getElementById('section-pending').classList.add('active');
         currentPageTitle.textContent = 'Acesso Restrito';
     } else {
-        // Show normal nav items
         navItems.forEach(item => {
-            // Keep admin-only hidden if not admin
-            if(item.classList.contains('admin-only') && loggedInUser.role !== 'admin') return;
+            if(item.classList.contains('admin-only') && currentUserProfile.role !== 'admin') return;
             item.classList.remove('hidden');
         });
         document.querySelectorAll('.user-only-action').forEach(el => el.classList.remove('hidden'));
-        
-        // Navigate to dashboard
         navigateTo('section-dashboard', 'Dashboard');
     }
 }
 
-// Modals Auth Logic
 window.openAuthModal = function(view) {
     modalAuth.classList.remove('hidden');
     switchAuthView(view);
@@ -212,78 +210,86 @@ window.switchAuthView = function(view) {
     }
 };
 
-// Register
-formRegister.addEventListener('submit', (e) => {
+formRegister.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Aguarde...';
+    
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim().toLowerCase();
     const cpf = document.getElementById('reg-cpf').value.trim();
     const password = document.getElementById('reg-password').value;
     const errorEl = document.getElementById('reg-error');
+    errorEl.classList.add('hidden');
     
-    // Check if exists
-    if (users.some(u => u.email === email || u.cpf === cpf)) {
-        errorEl.textContent = 'E-mail ou CPF já cadastrado!';
-        errorEl.classList.remove('hidden');
-        return;
-    }
-    
-    // Master Admin Rule
     let role = 'user';
     let status = 'pending';
-    
     if (email === 'jp14lopes07@gmail.com' && cpf === '19298299737') {
         role = 'admin';
         status = 'active';
     }
     
-    const newUser = {
-        id: generateId(),
-        name,
-        email,
-        cpf,
-        password, // In a real app, never store plain text!
-        role,
-        status,
-        createdAt: new Date().toISOString()
-    };
+    const { data, error } = await supabase.auth.signUp({
+        email, password
+    });
     
-    users.push(newUser);
-    saveUsers();
+    if (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Criar Conta';
+        return;
+    }
     
-    // Auto-login after register
-    loggedInUser = newUser;
-    saveLoggedInUser();
+    if (data.user) {
+        await supabase.from('profiles').insert({
+            id: data.user.id,
+            name,
+            email,
+            cpf,
+            role,
+            status
+        });
+        closeAuthModal();
+        initApp();
+    }
+});
+
+formLogin.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Aguarde...';
+    
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.add('hidden');
+    
+    const { error } = await supabase.auth.signInWithPassword({
+        email, password
+    });
+    
+    if (error) {
+        errorEl.textContent = "E-mail ou senha inválidos.";
+        errorEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Acessar Sistema';
+        return;
+    }
+    
     closeAuthModal();
     initApp();
 });
 
-// Login
-formLogin.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const emailCpf = document.getElementById('login-email').value.trim().toLowerCase();
-    const password = document.getElementById('login-password').value;
-    const errorEl = document.getElementById('login-error');
-    
-    const user = users.find(u => (u.email === emailCpf || u.cpf === emailCpf) && u.password === password);
-    
-    if (user) {
-        loggedInUser = user;
-        saveLoggedInUser();
-        closeAuthModal();
-        initApp();
-    } else {
-        errorEl.classList.remove('hidden');
-    }
-});
-
-btnLogout.addEventListener('click', () => {
+btnLogout.addEventListener('click', async () => {
+    await supabase.auth.signOut();
     loggedInUser = null;
-    saveLoggedInUser();
+    currentUserProfile = null;
     showLandingScreen();
 });
 
-// Theme
 function applyTheme() {
     document.body.className = settings.theme === 'dark' ? 'dark-theme' : 'light-theme';
     const icon = btnThemeToggle.querySelector('i');
@@ -294,16 +300,12 @@ function applyTheme() {
         icon.classList.remove('ph-sun');
         icon.classList.add('ph-moon');
     }
-    
-    // Update chart if exists
-    if(financialChartInstance) {
-        renderChart();
-    }
+    if(financialChartInstance) renderChart();
 }
 
 btnThemeToggle.addEventListener('click', () => {
     settings.theme = settings.theme === 'light' ? 'dark' : 'light';
-    saveSettings();
+    localStorage.setItem('caixa_theme', settings.theme);
     applyTheme();
 });
 
@@ -311,20 +313,15 @@ btnThemeToggle.addEventListener('click', () => {
    NAVIGATION
    ========================================================================== */
 function navigateTo(targetId, title) {
-    // Update active nav
     navItems.forEach(item => {
-        if(item.dataset.target === targetId) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
+        if(item.dataset.target === targetId) item.classList.add('active');
+        else item.classList.remove('active');
     });
 
-    // Update active section
     appSections.forEach(section => {
         if(section.id === targetId) {
             section.classList.remove('hidden');
-            section.classList.add('active'); // for animation
+            section.classList.add('active');
         } else {
             section.classList.add('hidden');
             section.classList.remove('active');
@@ -332,17 +329,13 @@ function navigateTo(targetId, title) {
     });
 
     currentPageTitle.textContent = title;
-    
-    // Close sidebar on mobile
     sidebar.classList.remove('open');
 }
 
 navItems.forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
-        const targetId = item.dataset.target;
-        const title = item.textContent.trim();
-        navigateTo(targetId, title);
+        navigateTo(item.dataset.target, item.textContent.trim());
     });
 });
 
@@ -352,17 +345,12 @@ btnCloseSidebar.addEventListener('click', () => sidebar.classList.remove('open')
 /* ==========================================================================
    FORMATTERS & HELPERS
    ========================================================================== */
-const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-    }).format(value);
-};
+const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const formatDate = (dateString) => {
+    if(!dateString) return '';
     const [year, month, day] = dateString.split('-');
-    const date = new Date(year, month - 1, day);
-    return new Intl.DateTimeFormat('pt-BR').format(date);
+    return new Intl.DateTimeFormat('pt-BR').format(new Date(year, month - 1, day));
 };
 
 const getStatusBadge = (status) => {
@@ -383,9 +371,6 @@ const getMethodIcon = (method) => {
     };
     return icons[method] || method;
 };
-
-// Generate UUID
-const generateId = () => Math.random().toString(36).substr(2, 9);
 
 /* ==========================================================================
    TRANSACTIONS LOGIC
@@ -444,48 +429,54 @@ btnNewTransaction.addEventListener('click', () => openTransactionModal());
 btnCloseModal.addEventListener('click', closeTransactionModal);
 btnCancelTransaction.addEventListener('click', closeTransactionModal);
 
-formTransaction.addEventListener('submit', (e) => {
+formTransaction.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = document.getElementById('btn-save-transaction') || e.target.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
     
     const id = document.getElementById('trans-id').value;
     const type = document.querySelector('input[name="trans-type"]:checked').value;
     
     const transactionData = {
-        id: id || generateId(),
+        user_id: loggedInUser.id,
         type: type,
         description: document.getElementById('trans-desc').value.trim(),
         amount: parseFloat(document.getElementById('trans-amount').value),
         date: document.getElementById('trans-date').value,
         category: document.getElementById('trans-category').value,
-        paymentMethod: document.getElementById('trans-method').value,
+        payment_method: document.getElementById('trans-method').value,
         status: document.getElementById('trans-status').value,
         notes: document.getElementById('trans-notes').value.trim()
     };
     
     if (id) {
-        const index = transactions.findIndex(t => t.id === id);
-        if (index > -1) transactions[index] = transactionData;
+        await supabase.from('transactions').update(transactionData).eq('id', id);
     } else {
-        transactions.push(transactionData);
+        await supabase.from('transactions').insert(transactionData);
     }
     
-    saveTransactions();
+    await loadSupabaseData(); // Refetch
+    btn.disabled = false;
+    btn.textContent = originalText;
     closeTransactionModal();
     renderAll();
 });
 
-window.deleteTransaction = function(id) {
+window.deleteTransaction = async function(id) {
     if(confirm('Tem certeza que deseja excluir esta transação?')) {
-        transactions = transactions.filter(t => t.id !== id);
-        saveTransactions();
+        await supabase.from('transactions').delete().eq('id', id);
+        await loadSupabaseData();
         renderAll();
     }
 };
-window.markAsPaid = function(id) {
+
+window.markAsPaid = async function(id) {
     const t = transactions.find(t => t.id === id);
     if(t) {
-        t.status = 'paid';
-        saveTransactions();
+        await supabase.from('transactions').update({ status: 'paid' }).eq('id', id);
+        await loadSupabaseData();
         renderAll();
     }
 };
@@ -495,7 +486,7 @@ window.editTransaction = openTransactionModal;
    RENDERING & ADMIN
    ========================================================================== */
 function renderAll() {
-    if(loggedInUser.status === 'pending') return; // Do not render heavy stuff if pending
+    if(currentUserProfile.status === 'pending') return;
     
     populateCategoryDropdowns();
     renderDashboard();
@@ -506,7 +497,7 @@ function renderAll() {
     renderCategoriesList();
     renderSettingsForm();
     
-    if(loggedInUser.role === 'admin') {
+    if(currentUserProfile.role === 'admin') {
         renderUsersTable();
     }
 }
@@ -525,7 +516,7 @@ function renderUsersTable() {
             : '<span class="badge badge-neutral">Usuário</span>';
             
         let actions = '';
-        if(u.id !== loggedInUser.id) { // Cannot edit self easily here
+        if(u.id !== loggedInUser.id) {
             if(u.status === 'pending') {
                 actions += `<button class="btn-action approve" onclick="approveUser('${u.id}')" title="Aprovar Acesso"><i class="ph ph-check"></i></button>`;
             }
@@ -547,35 +538,26 @@ function renderUsersTable() {
     }).join('');
 }
 
-window.approveUser = function(id) {
-    const userIndex = users.findIndex(u => u.id === id);
-    if(userIndex > -1) {
-        users[userIndex].status = 'active';
-        saveUsers();
-        renderUsersTable();
-    }
+window.approveUser = async function(id) {
+    await supabase.from('profiles').update({ status: 'active' }).eq('id', id);
+    await loadSupabaseData();
+    renderUsersTable();
 };
 
-window.deleteUser = function(id) {
+window.deleteUser = async function(id) {
     if(confirm('Atenção: Tem certeza que deseja remover este usuário permanentemente?')) {
-        users = users.filter(u => u.id !== id);
-        saveUsers();
+        await supabase.from('profiles').delete().eq('id', id);
+        await loadSupabaseData();
         renderUsersTable();
     }
 };
 
-// Other Rendering Methods
 function populateCategoryDropdowns() {
     const selects = [document.getElementById('trans-category'), filterCategory];
-    
     selects.forEach(select => {
         if(!select) return;
-        
         let html = '';
-        if (select.id === 'filter-category') {
-            html += '<option value="all">Todas Categorias</option>';
-        }
-        
+        if (select.id === 'filter-category') html += '<option value="all">Todas Categorias</option>';
         categories.forEach(cat => {
             html += `<option value="${cat}">${cat}</option>`;
         });
@@ -607,7 +589,6 @@ function getFilteredTransactions() {
         const matchType = type === 'all' || t.type === type;
         const matchCat = cat === 'all' || t.category === cat;
         const matchDate = !monthYear || t.date.startsWith(monthYear);
-        
         return matchSearch && matchType && matchCat && matchDate;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
 }
@@ -638,7 +619,7 @@ function generateTableRow(t, isPending = false) {
             <td>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                     ${getStatusBadge(t.status)}
-                    <span class="payment-method">${getMethodIcon(t.paymentMethod)}</span>
+                    <span class="payment-method">${getMethodIcon(t.payment_method || t.paymentMethod)}</span>
                 </div>
             </td>
             <td>
@@ -757,7 +738,7 @@ function renderDashboard() {
         alertDeficit.classList.add('hidden');
     }
 
-    const goalTarget = parseFloat(settings.monthlyGoal) || 0;
+    const goalTarget = parseFloat(settings.monthlyGoal) || parseFloat(settings.monthly_goal) || 0;
     document.getElementById('dash-goal-target').textContent = formatCurrency(goalTarget);
     document.getElementById('dash-goal-current').textContent = formatCurrency(monthIncome);
     
@@ -851,50 +832,6 @@ function renderChart() {
     });
 }
 
-/* ==========================================================================
-   CATEGORIES CRUD
-   ========================================================================== */
-const formCategory = document.getElementById('form-category');
-const catNameInput = document.getElementById('cat-name');
-
-formCategory.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const newCat = catNameInput.value.trim();
-    
-    if (newCat && !categories.includes(newCat)) {
-        categories.push(newCat);
-        saveCategories();
-        catNameInput.value = '';
-        renderAll();
-    } else if (categories.includes(newCat)) {
-        alert('Esta categoria já existe!');
-    }
-});
-
-window.deleteCategory = function(catName) {
-    const isUsed = transactions.some(t => t.category === catName);
-    if (isUsed) {
-        alert('Não é possível excluir esta categoria pois existem transações vinculadas a ela.');
-        return;
-    }
-    
-    if(confirm(`Excluir a categoria "${catName}"?`)) {
-        categories = categories.filter(c => c !== catName);
-        saveCategories();
-        renderAll();
-    }
-};
-
-function renderCategoriesList() {
-    if(!categoriesList) return;
-    categoriesList.innerHTML = categories.map(cat => `
-        <li class="category-item">
-            <span class="badge badge-neutral">${cat}</span>
-            <button class="btn-action delete" onclick="deleteCategory('${cat}')" title="Excluir"><i class="ph ph-trash"></i></button>
-        </li>
-    `).join('');
-}
-
 function renderReportsTable() {
     const tableBody = document.querySelector('#reports-table tbody');
     if(!tableBody) return;
@@ -902,8 +839,8 @@ function renderReportsTable() {
     const monthData = {};
     
     transactions.forEach(t => {
-        if(t.status !== 'paid') return; // Consider only paid for balance
-        const monthYear = t.date.substring(0, 7); // YYYY-MM
+        if(t.status !== 'paid') return;
+        const monthYear = t.date.substring(0, 7);
         if(!monthData[monthYear]) {
             monthData[monthYear] = { income: 0, expense: 0 };
         }
@@ -939,6 +876,50 @@ function renderReportsTable() {
 }
 
 /* ==========================================================================
+   CATEGORIES CRUD
+   ========================================================================== */
+const formCategory = document.getElementById('form-category');
+const catNameInput = document.getElementById('cat-name');
+
+formCategory.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newCat = catNameInput.value.trim();
+    
+    if (newCat && !categories.includes(newCat)) {
+        await supabase.from('categories').insert({ user_id: loggedInUser.id, name: newCat });
+        catNameInput.value = '';
+        await loadSupabaseData();
+        renderAll();
+    } else if (categories.includes(newCat)) {
+        alert('Esta categoria já existe!');
+    }
+});
+
+window.deleteCategory = async function(catName) {
+    const isUsed = transactions.some(t => t.category === catName);
+    if (isUsed) {
+        alert('Não é possível excluir esta categoria pois existem transações vinculadas a ela.');
+        return;
+    }
+    
+    if(confirm(`Excluir a categoria "${catName}"?`)) {
+        await supabase.from('categories').delete().eq('user_id', loggedInUser.id).eq('name', catName);
+        await loadSupabaseData();
+        renderAll();
+    }
+};
+
+function renderCategoriesList() {
+    if(!categoriesList) return;
+    categoriesList.innerHTML = categories.map(cat => `
+        <li class="category-item">
+            <span class="badge badge-neutral">${cat}</span>
+            <button class="btn-action delete" onclick="deleteCategory('${cat}')" title="Excluir"><i class="ph ph-trash"></i></button>
+        </li>
+    `).join('');
+}
+
+/* ==========================================================================
    SETTINGS & DATA MANAGEMENT
    ========================================================================== */
 const formSettings = document.getElementById('form-settings');
@@ -946,18 +927,23 @@ const inputCompanyName = document.getElementById('set-company-name');
 const inputGoal = document.getElementById('set-goal');
 
 function renderSettingsForm() {
-    inputCompanyName.value = settings.companyName;
-    inputGoal.value = settings.monthlyGoal;
+    inputCompanyName.value = settings.company_name || settings.companyName;
+    inputGoal.value = settings.monthly_goal || settings.monthlyGoal;
 }
 
-formSettings.addEventListener('submit', (e) => {
+formSettings.addEventListener('submit', async (e) => {
     e.preventDefault();
-    settings.companyName = inputCompanyName.value.trim();
-    settings.monthlyGoal = parseFloat(inputGoal.value);
-    saveSettings();
+    const companyName = inputCompanyName.value.trim();
+    const monthlyGoal = parseFloat(inputGoal.value);
     
-    sidebarCompanyName.textContent = settings.companyName;
-    alert('Configurações salvas com sucesso!');
+    await supabase.from('settings').update({
+        company_name: companyName,
+        monthly_goal: monthlyGoal
+    }).eq('user_id', loggedInUser.id);
+    
+    await loadSupabaseData();
+    sidebarCompanyName.textContent = settings.company_name || settings.companyName;
+    alert('Configurações salvas com sucesso no banco de dados!');
     renderDashboard();
 });
 
@@ -975,7 +961,7 @@ function exportCSV() {
         const values = [
             t.id, t.type === 'income' ? 'Entrada' : 'Saida', t.date,
             `"${t.description.replace(/"/g, '""')}"`, `"${t.category}"`,
-            t.amount, t.paymentMethod, t.status, `"${(t.notes || '').replace(/"/g, '""')}"`
+            t.amount, t.payment_method || t.paymentMethod, t.status, `"${(t.notes || '').replace(/"/g, '""')}"`
         ];
         csvRows.push(values.join(','));
     });
@@ -985,7 +971,8 @@ function exportCSV() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `extrato_${settings.companyName.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`);
+    const compName = settings.company_name || settings.companyName || 'Extrato';
+    link.setAttribute('download', `extrato_${compName.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -996,11 +983,12 @@ document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 const btnExportReports = document.getElementById('btn-export-csv-reports');
 if(btnExportReports) btnExportReports.addEventListener('click', exportCSV);
 
-document.getElementById('btn-clear-data').addEventListener('click', () => {
-    const confirmation = prompt('Atenção: Isso apagará TODOS os dados permanentemente.\nDigite "APAGAR TUDO" para confirmar:');
+document.getElementById('btn-clear-data').addEventListener('click', async () => {
+    const confirmation = prompt('Atenção: Isso apagará TODOS os seus dados do banco (Transações e Categorias).\nDigite "APAGAR TUDO" para confirmar:');
     if (confirmation === 'APAGAR TUDO') {
-        localStorage.clear();
-        alert('Dados apagados com sucesso. O sistema será reiniciado.');
+        await supabase.from('transactions').delete().eq('user_id', loggedInUser.id);
+        await supabase.from('categories').delete().eq('user_id', loggedInUser.id);
+        alert('Seus dados foram apagados com sucesso no banco.');
         window.location.reload();
     }
 });
